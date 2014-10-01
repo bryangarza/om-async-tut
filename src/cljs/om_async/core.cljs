@@ -25,10 +25,17 @@
        (send url (meths method) (when data (pr-str data))
              #js {"Content-Type" "application/edn"}))))
 
-(def app-state
-  (atom {:classes []}))
-
 (defn display [show]
   (if show
     #js {}
     #js {:display "none"}))
+
+(defn handle-change [e data edit-key owner]
+  (om/transact! data edit-key (fn [_] (.. e -target -value))))
+
+(defn end-edit [text owner cb]
+  (om/set-state! owner :editing false)
+  (cb text))
+
+(def app-state
+  (atom {:classes []}))
