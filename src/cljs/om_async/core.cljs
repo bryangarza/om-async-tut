@@ -37,5 +37,63 @@
   (om/set-state! owner :editing false)
   (cb text))
 
+(defn on-edit [id title]
+  (edn-xhr
+    {:method :put
+     :url (str "class/" id "/update")
+     :data {:class/title title}
+     :on-complete
+     (fn [res]
+       (println "server response:" res))}))
+
+
+(defn editable [data owner {:keys [edit-key on-edit] :as opts}]
+  (reify
+    om/IInitState
+    (init-state [_]
+      {:editing false})
+    om/IRenderState
+    (render-state [_ {:keys [editing]}]
+      (let [text (get data edit-key)]
+        (dom/li nil
+                (dom/span #js {:style (display (not editing))} text)
+                (dom/input
+                  #js {:style (display editing)
+                       :value text
+                       :onChange #(handle-change % data edit-key owner)
+                       :onKeyPress #(when (== (.-keyCode %) 13)
+                                      (end-edit text owner on-edit))
+                       :onBlur (fn [e]
+                                 (when (om/get-state owner :editing)
+                                   (end-edit text owner on-edit)))})
+                (dom/button
+                  #js {:style (display (not editing))
+                       :onClick #(om/set-state! owner :editing true)}
+                  "Edit"))))))
+
+(defn classes-view [app owner]
+  (reify
+    om/IWillMount
+    (will-mount [_]
+      (edn-xhr
+        {:method :get
+         :url "classes"
+         :on-complete #(om/transact! app :classes (fn [_] %))}))
+    om/IRender
+    (render [_]
+      (dom/div #js {:id  "classes"}
+               (dom/h2 nil "Classes")
+               (apply dom/ul nil
+                      (map
+                        (fn [class]
+                          (let [id (:class/id class)]
+                            (om/build editable class
+                                      {:opts {:edit-key :class/title
+                                              :on-edit #(on-edit id %)}})))
+                        (:classes app)))))))
+
 (def app-state
   (atom {:classes []}))
+
+(om/root classes-view app-state
+         {:target (gdom/getElement "classes")})
